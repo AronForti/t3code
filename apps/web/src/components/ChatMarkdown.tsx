@@ -641,9 +641,10 @@ function useChatMarkdownState({
         ),
       );
     }
+    const normalizedPath = filePath.replace(/(?<![:\\/])[\\/]+$/, "");
     return openInEditor({
       environmentId,
-      input: { cwd: filePath, editor: "file-manager", reveal: true },
+      input: { cwd: normalizedPath || filePath, editor: "file-manager", reveal: true },
     });
   };
   const diffThemeName = resolveDiffThemeName(resolvedTheme);

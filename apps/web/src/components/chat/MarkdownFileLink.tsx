@@ -54,14 +54,14 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
   targetPath,
   iconPath,
   workspaceRelativePath,
-  panelPath,
-  line,
+  panelPath: _panelPath,
+  line: _line,
   label,
   copyMarkdown,
   theme,
-  threadRef,
+  threadRef: _threadRef,
   onOpen,
-  onOpenInPanel,
+  onOpenInPanel: _onOpenInPanel,
   openInEditorMenuLabel,
   onOpenInBrowser,
   onOpenMedia,
@@ -108,8 +108,8 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
   };
 
   const handleOpenInFilePreview = () => {
-    if (threadRef && panelPath) {
-      onOpenInPanel(panelPath, line);
+    if (onReveal) {
+      handleRevealInFileManager();
       return;
     }
     if (onOpenMedia) {
@@ -308,19 +308,23 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
 
   const canOpenInEditor = onOpen !== undefined;
   const canOpenInBrowser = onOpenInBrowser !== undefined;
-  const canOpenInPanel = threadRef !== undefined && Boolean(panelPath);
+  const canOpenInPanel = false;
+  const canReveal = onReveal !== undefined;
   const hasPrimaryAction = hasMarkdownFilePrimaryAction({
     canOpenInEditor,
     canOpenInBrowser,
     canOpenInPanel,
     canOpenMedia: onOpenMedia !== undefined,
+    canReveal,
   });
-  const useBrowserPrimaryAction = shouldUseMarkdownFileBrowserPrimaryAction({
-    iconPath,
-    canOpenInEditor,
-    canOpenInBrowser,
-    canOpenInPanel,
-  });
+  const useBrowserPrimaryAction =
+    !canReveal &&
+    shouldUseMarkdownFileBrowserPrimaryAction({
+      iconPath,
+      canOpenInEditor,
+      canOpenInBrowser,
+      canOpenInPanel,
+    });
   const chipKind = documentChipKindForFileName(iconPath) ?? "mention";
 
   return (
@@ -339,6 +343,10 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
                 event.stopPropagation();
                 if (onOpen && shouldOpenMarkdownFileLinkInEditor(event)) {
                   handleOpenInEditor();
+                  return;
+                }
+                if (onReveal) {
+                  handleRevealInFileManager();
                   return;
                 }
                 if (useBrowserPrimaryAction) {
