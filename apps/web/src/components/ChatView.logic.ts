@@ -1253,6 +1253,8 @@ export function mergeDirectPreviewAnnotation(input: {
   return { images, previewAnnotations };
 }
 
+import { applySecondBrainPromptSuffix, type SecondBrainPromptConfig } from "../secondBrainStore";
+
 export { isThreadWokeUnseen } from "@t3tools/client-runtime/state/thread-settled";
 
 export function formatOutgoingPrompt(params: {
@@ -1261,10 +1263,12 @@ export function formatOutgoingPrompt(params: {
   models: ReadonlyArray<ServerProvider["models"][number]>;
   effort: string | null;
   text: string;
+  secondBrain?: SecondBrainPromptConfig | null;
 }): string {
   const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
   const promptEffort = resolvePromptInjectedEffort(caps, params.effort);
-  return applyClaudePromptEffortPrefix(params.text, promptEffort);
+  const withEffort = applyClaudePromptEffortPrefix(params.text, promptEffort);
+  return applySecondBrainPromptSuffix(withEffort, params.secondBrain);
 }
 
 export function isCompactCommandMessage(message: ChatMessage): boolean {

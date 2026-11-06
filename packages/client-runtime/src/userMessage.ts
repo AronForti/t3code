@@ -31,6 +31,18 @@ export const IDLE_COMPACTION_TITLES = {
 
 const LEGACY_AUTOMATION_PREFIX = /^\[Triggered by schedule task: [^\r\n]+\]\r?\n\r?\n/;
 const LEGACY_AUTOMATION_MESSAGE_ID = /^scheduled-task-message:(.+):\d+:(?:scheduled|manual)$/;
+const SECOND_BRAIN_INSTRUCTIONS_BLOCK_PATTERN =
+  /\r?\n*<t3_second_brain_instructions(?:\s+mode="([^"]*)")?[^>]*>[\s\S]*?<\/t3_second_brain_instructions>\s*$/;
+
+export function stripSecondBrainInstructions(text: string): string {
+  return text.replace(SECOND_BRAIN_INSTRUCTIONS_BLOCK_PATTERN, "");
+}
+
+function extractSecondBrainMode(text: string): string | null {
+  const match = SECOND_BRAIN_INSTRUCTIONS_BLOCK_PATTERN.exec(text);
+  if (!match) return null;
+  return match[1]?.trim() || "auto";
+}
 
 export function resolveUserMessageFileCards(message: {
   readonly text: string;
@@ -46,7 +58,8 @@ export function resolveUserMessageFileCards(message: {
   );
   if (files.length === 0 || files.length !== message.attachments.length) return null;
   const fileIds = new Set(files.map((file) => file.id));
-  const remaining = replaceComposerContextReferences(message.text, (reference) => {
+  const cleanText = stripSecondBrainInstructions(message.text);
+  const remaining = replaceComposerContextReferences(cleanText, (reference) => {
     const record = message.context?.records.find((item) => item.contextId === reference.contextId);
     return reference.kind === "file" &&
       record?.kind === "file" &&
@@ -72,10 +85,14 @@ export function resolveUserMessagePresentation(message: {
   readonly scheduledTaskId: ScheduledTaskId | undefined;
   /** Set when `attribution` is "guest". */
   readonly guestName?: string;
+  /** Set when Second Brain mode instructions were attached to this user turn. */
+  readonly secondBrainMode?: string | null;
 } {
   if (message.role !== "user") {
     return { text: message.text, attribution: null, scheduledTaskId: undefined };
   }
+  const secondBrainMode = extractSecondBrainMode(message.text);
+  const cleanMessageText = stripSecondBrainInstructions(message.text);
   // The stored text names the guest for the agent; people see the guest's own words.
   const guest = message.context?.guest;
   if (guest !== undefined) {
@@ -84,29 +101,32 @@ export function resolveUserMessagePresentation(message: {
       attribution: "guest",
       scheduledTaskId: undefined,
       guestName: guest.name,
+      secondBrainMode,
     };
   }
   if (message.scheduledTaskId !== undefined) {
     return {
-      text: message.text,
+      text: cleanMessageText,
       attribution: "automation",
       scheduledTaskId: message.scheduledTaskId,
+      secondBrainMode,
     };
   }
-  const legacyPrefix = LEGACY_AUTOMATION_PREFIX.exec(message.text);
+  const legacyPrefix = LEGACY_AUTOMATION_PREFIX.exec(cleanMessageText);
   const legacyTaskId = legacyPrefix
     ? LEGACY_AUTOMATION_MESSAGE_ID.exec(message.id ?? "")?.[1]
     : undefined;
   if (legacyPrefix !== null && (legacyTaskId !== undefined || message.createdBy === "agent")) {
     return {
-      text: message.text.slice(legacyPrefix[0].length),
+      text: cleanMessageText.slice(legacyPrefix[0].length),
       attribution: "automation",
       scheduledTaskId: legacyTaskId === undefined ? undefined : ScheduledTaskId.make(legacyTaskId),
+      secondBrainMode,
     };
   }
   return {
     // The agent needs words to start a turn; people sent only the attachments.
-    text: isAttachmentOnlyBootstrapPrompt(message.text) ? "" : message.text,
+    text: isAttachmentOnlyBootstrapPrompt(cleanMessageText) ? "" : cleanMessageText,
     attribution:
       message.createdBy !== "agent"
         ? null
@@ -114,6 +134,7 @@ export function resolveUserMessagePresentation(message: {
           ? "t3code"
           : "agent",
     scheduledTaskId: undefined,
+    secondBrainMode,
   };
 }
 

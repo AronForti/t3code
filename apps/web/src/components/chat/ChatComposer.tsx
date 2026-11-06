@@ -277,6 +277,7 @@ import {
   usePreparingComposerImages,
 } from "./preparingComposerImages";
 import { ComposerControlsBar } from "./ComposerControlsBar";
+import { ComposerSecondBrainControl } from "./ComposerSecondBrainControl";
 import { composerCommandKeyHandler } from "./composerCommandKey";
 
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
@@ -3497,6 +3498,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   >
                     {composerControls}
                   </div>
+                  <ComposerSecondBrainControl />
                   <ComposerFooterPrimaryActions
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}

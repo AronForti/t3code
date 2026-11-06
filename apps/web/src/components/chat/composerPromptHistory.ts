@@ -1,4 +1,7 @@
-import { resolveUserMessagePresentation } from "@t3tools/client-runtime/user-message";
+import {
+  resolveUserMessagePresentation,
+  stripSecondBrainInstructions,
+} from "@t3tools/client-runtime/user-message";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   collectComposerContextReferences,
@@ -71,7 +74,7 @@ function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string
 }
 
 export function recallableComposerPrompt(messageText: string): string {
-  let prompt = messageText.trim();
+  let prompt = stripSecondBrainInstructions(messageText).trim();
   if (prompt.startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
     prompt = prompt.slice(CLAUDE_ULTRATHINK_PREFIX.length);
   }

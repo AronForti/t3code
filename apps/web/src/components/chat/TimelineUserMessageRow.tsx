@@ -27,6 +27,7 @@ import {
 } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
 import {
+  BrainIcon,
   CalendarClockIcon,
   ChevronDownIcon,
   DownloadIcon,
@@ -834,6 +835,22 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
         >
           Sent by T3 Code
         </p>
+      ) : null}
+      {userMessage.secondBrainMode ? (
+        <span
+          className="me-1 inline-flex items-center gap-1 rounded-full bg-primary/12 px-2 py-0.5 text-3xs font-medium text-primary"
+          data-user-message-second-brain={userMessage.secondBrainMode}
+        >
+          <BrainIcon className="size-2.5" />
+          Second Brain
+          {userMessage.secondBrainMode === "query"
+            ? " · Leggi"
+            : userMessage.secondBrainMode === "ingest"
+              ? " · Carica"
+              : userMessage.secondBrainMode === "lint"
+                ? " · Riordina"
+                : ""}
+        </span>
       ) : null}
       {/* The row's heading already names the guest for screen readers. */}
       {userMessage.guestName !== undefined ? (
