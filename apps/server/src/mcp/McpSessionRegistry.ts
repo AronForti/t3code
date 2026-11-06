@@ -1,15 +1,17 @@
-import { ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { enabledUserMcpServers, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Digest from "effect/crypto/Digest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Layer from "effect/Layer";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 import { HttpServer } from "effect/http";
 import * as NetAddress from "effect/net/NetAddress";
 
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import { ServerSettingsService } from "../serverSettings.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpProviderSession from "@t3tools/provider-core/server/mcpSession";
 
@@ -82,6 +84,14 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
   const environment = yield* ServerEnvironment.ServerEnvironment;
   const environmentId = yield* environment.getEnvironmentId;
   const httpServer = yield* HttpServer.HttpServer;
+  const serverSettings = yield* Effect.serviceOption(ServerSettingsService);
+  // Read per issue so a server installed in Settings reaches the next session without a restart.
+  const readUserServers = Option.isSome(serverSettings)
+    ? serverSettings.value.getSettings.pipe(
+        Effect.map((settings) => enabledUserMcpServers(settings.mcpServers)),
+        Effect.orElseSucceed(() => []),
+      )
+    : Effect.succeed([]);
   const state = yield* SynchronizedRef.make<RegistryState>({ records: new Map() });
   const currentTimeMillis = options.now ? Effect.sync(options.now) : Clock.currentTimeMillis;
   const livenessWindowMs = options.livenessWindowMs ?? DEFAULT_LIVENESS_WINDOW_MS;
@@ -124,6 +134,7 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
         next.set(tokenHash, { tokenHash, scope, lastAliveAt: issuedAt });
         return { records: next };
       });
+      const userServers = yield* readUserServers;
       return {
         config: {
           environmentId,
@@ -134,6 +145,7 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
           authorizationHeader: `Bearer ${rawToken}`,
           browserToolsAvailable: scope.capabilities.has("preview"),
           capabilities: scope.capabilities,
+          ...(userServers.length === 0 ? {} : { userServers }),
         },
       };
     },

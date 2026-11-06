@@ -841,9 +841,40 @@ function acpMcpContext(
   if (session === undefined) {
     return { servers: [], acpServers: [], httpServers: [] };
   }
+  const userStdio = (session.userServers ?? []).flatMap(
+    (server): Array<EffectAcpSchema.McpServer> =>
+      server.transport.type === "stdio"
+        ? [
+            {
+              name: server.name,
+              command: server.transport.command,
+              args: [...server.transport.args],
+              env: Object.entries(server.transport.env).map(([name, value]) => ({ name, value })),
+            },
+          ]
+        : [],
+  );
+  const userHttp = (session.userServers ?? []).flatMap(
+    (server): Array<EffectAcpSchema.McpServer> =>
+      server.transport.type === "http"
+        ? [
+            {
+              type: "http",
+              name: server.name,
+              url: server.transport.url,
+              headers: Object.entries(server.transport.headers).map(([name, value]) => ({
+                name,
+                value,
+              })),
+            },
+          ]
+        : [],
+  );
   // codex-acp 1.2.0 and pi-acp drop injected HTTP servers, so HTTP is opt-in per flavor.
+  // User HTTP servers ride only where the agent negotiates more than stdio.
   return {
     servers: [
+      ...userStdio,
       {
         name: "t3-code",
         command: self.command,
@@ -855,10 +886,12 @@ function acpMcpContext(
         ],
       },
     ],
-    acpServers: [{ type: "acp", name: "t3-code", serverId: "t3-code" }],
+    acpServers: [...userStdio, ...userHttp, { type: "acp", name: "t3-code", serverId: "t3-code" }],
     httpServers:
       mcpOverHttp === true
         ? [
+            ...userStdio,
+            ...userHttp,
             {
               type: "http",
               name: "t3-code",

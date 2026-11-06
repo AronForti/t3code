@@ -127,6 +127,7 @@ import {
   type ProviderThreadId,
   type RunId,
   type ThreadId,
+  type UserMcpServer,
   resolveIdleCompaction,
 } from "@t3tools/contracts";
 
@@ -2007,6 +2008,28 @@ export const CLAUDE_T3_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 // allowedTools pre-approves calls; tools controls availability. Pre-approve T3 tools for headless modes,
 // limited to annotated read-only tools in read-only sandboxes.
 
+function claudeUserMcpServers(
+  servers: ReadonlyArray<UserMcpServer>,
+): NonNullable<ClaudeQueryOptions["mcpServers"]> {
+  return Object.fromEntries(
+    servers.map((server) => [
+      server.name,
+      server.transport.type === "stdio"
+        ? {
+            type: "stdio" as const,
+            command: server.transport.command,
+            args: [...server.transport.args],
+            env: { ...server.transport.env },
+          }
+        : {
+            type: "http" as const,
+            url: server.transport.url,
+            headers: { ...server.transport.headers },
+          },
+    ]),
+  );
+}
+
 export function claudeMcpQueryOverrides(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly readOnlySandbox: boolean;
@@ -2025,6 +2048,8 @@ export function claudeMcpQueryOverrides(input: {
   return {
     allowedTools: Array.from(new Set([...(input.allowedTools ?? []), ...mcpAllowedTools])),
     mcpServers: {
+      // User servers are not pre-approved; their tools follow the thread's approval mode.
+      ...claudeUserMcpServers(session.userServers ?? []),
       "t3-code": {
         type: "http",
         url: session.endpoint,

@@ -1423,6 +1423,18 @@ function codexThreadRuntimeParams(input: {
       ...(input.threadId === null
         ? {}
         : { [`shell_environment_policy.set.${PortScanner.AGENT_THREAD_ENV}`]: input.threadId }),
+      ...Object.fromEntries(
+        (mcpSession?.userServers ?? []).map((server) => [
+          `mcp_servers.${server.name}`,
+          server.transport.type === "stdio"
+            ? {
+                command: server.transport.command,
+                args: [...server.transport.args],
+                env: { ...server.transport.env },
+              }
+            : { url: server.transport.url, http_headers: { ...server.transport.headers } },
+        ]),
+      ),
       ...(t3Server === undefined
         ? {}
         : {

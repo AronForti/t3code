@@ -602,6 +602,13 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
       endpoint: "http://127.0.0.1:43123/mcp",
       authorizationHeader: "Bearer secret-claude-token",
       browserToolsAvailable: true,
+      userServers: [
+        {
+          name: "blender",
+          enabled: true,
+          transport: { type: "stdio" as const, command: "uvx", args: ["blender-mcp"], env: {} },
+        },
+      ],
     };
 
     const overrides = ClaudeAdapterV2.claudeMcpQueryOverrides({
@@ -610,8 +617,10 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
       allowedTools: ["Read"],
     });
     assert.deepEqual(overrides, {
+      // User servers are registered but not pre-approved.
       allowedTools: ["Read", "mcp__t3-code__*"],
       mcpServers: {
+        blender: { type: "stdio", command: "uvx", args: ["blender-mcp"], env: {} },
         "t3-code": {
           type: "http",
           url: "http://127.0.0.1:43123/mcp",

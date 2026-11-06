@@ -8,6 +8,7 @@ import { HttpServer } from "effect/http";
 import * as NetAddress from "effect/net/NetAddress";
 
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
 
 const environmentId = EnvironmentId.make("environment-1");
@@ -221,4 +222,31 @@ it.effect.each(["provider-session", "thread", "all"] as const)(
       yield* registry.touch(threadId);
       expect(yield* registry.resolve(token)).toBeUndefined();
     }),
+);
+
+it.effect("attaches only enabled, non-reserved user MCP servers from settings", () =>
+  Effect.gen(function* () {
+    const blender = {
+      name: "blender",
+      enabled: true,
+      transport: { type: "stdio" as const, command: "uvx", args: ["blender-mcp"], env: {} },
+    };
+    const http = { type: "http" as const, url: "http://127.0.0.1:3845/mcp", headers: {} };
+    const registry = yield* makeRegistry(() => 1_000).pipe(
+      Effect.provide(
+        ServerSettings.ServerSettingsService.layerTest({
+          mcpServers: [
+            blender,
+            { name: "figma", enabled: false, transport: http },
+            { name: "t3-code", enabled: true, transport: http },
+          ],
+        }),
+      ),
+    );
+    const issued = yield* registry.issue({
+      threadId: ThreadId.make("thread-user-mcp"),
+      providerInstanceId: ProviderInstanceId.make("claude"),
+    });
+    expect(issued.config.userServers).toEqual([blender]);
+  }),
 );

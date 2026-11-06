@@ -1180,6 +1180,8 @@ const layerMakeServer = Layer.unwrap(
       Layer.provideMerge(
         McpSessionRegistry.layer.pipe(
           Layer.provide(ServerEnvironment.layer.pipe(Layer.provide(ServerSecretStore.layer))),
+          // Same layer value as the runtime's, so this shares its memoized instance.
+          Layer.provide(layerServerSettings),
         ),
       ),
       Layer.provide(layerActivation),

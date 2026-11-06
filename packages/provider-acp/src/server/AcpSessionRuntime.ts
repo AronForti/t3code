@@ -2139,7 +2139,9 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     const mcpCapabilities = initializeResult.agentCapabilities?.mcpCapabilities;
     const acpServers = activationOptions?.acpMcpServers ?? options.acpMcpServers ?? [];
     if (mcpCapabilities?.acp === true && acpServers.length > 0) {
-      return acpServers;
+      return mcpCapabilities.http === true
+        ? acpServers
+        : acpServers.filter((server) => !("type" in server) || server.type !== "http");
     }
     const httpServers = activationOptions?.httpMcpServers ?? options.httpMcpServers ?? [];
     if (mcpCapabilities?.http === true && httpServers.length > 0) {

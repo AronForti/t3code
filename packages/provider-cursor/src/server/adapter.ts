@@ -205,7 +205,21 @@ export function cursorMcpServers(
   if (session === undefined) {
     return undefined;
   }
+  const userServers = Object.fromEntries(
+    (session.userServers ?? []).map((server): [string, McpServerConfig] => [
+      server.name,
+      server.transport.type === "stdio"
+        ? {
+            type: "stdio",
+            command: server.transport.command,
+            args: [...server.transport.args],
+            env: { ...server.transport.env },
+          }
+        : { type: "http", url: server.transport.url, headers: { ...server.transport.headers } },
+    ]),
+  );
   return {
+    ...userServers,
     "t3-code": {
       type: "http",
       url: session.endpoint,

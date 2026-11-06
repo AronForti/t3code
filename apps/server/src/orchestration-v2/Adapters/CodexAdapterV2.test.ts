@@ -1603,6 +1603,18 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         endpoint: "http://127.0.0.1:43123/mcp",
         authorizationHeader: "Bearer secret-codex-token",
         browserToolsAvailable: true,
+        userServers: [
+          {
+            name: "blender",
+            enabled: true,
+            transport: { type: "stdio", command: "uvx", args: ["blender-mcp"], env: { A: "1" } },
+          },
+          {
+            name: "figma",
+            enabled: true,
+            transport: { type: "http", url: "http://127.0.0.1:3845/mcp", headers: {} },
+          },
+        ],
       });
       const requests: Array<unknown> = [];
       yield* makeCodexReplayHarness(
@@ -1628,6 +1640,8 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             "tools.update_plan.enabled": true,
             mcp_optional_startup_grace_ms: 10_000,
             "shell_environment_policy.set.T3CODE_THREAD_ID": `thread-${scenario}`,
+            "mcp_servers.blender": { command: "uvx", args: ["blender-mcp"], env: { A: "1" } },
+            "mcp_servers.figma": { url: "http://127.0.0.1:3845/mcp", http_headers: {} },
             "mcp_servers.t3-code": {
               url: "http://127.0.0.1:43123/mcp",
               tool_timeout_sec: 3_900,
