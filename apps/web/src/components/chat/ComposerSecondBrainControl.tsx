@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   ExternalLinkIcon,
   FolderOpenIcon,
+  MessageSquarePlusIcon,
 } from "lucide-react";
 import { memo, useState } from "react";
 
@@ -49,6 +50,7 @@ export const ComposerSecondBrainControl = memo(function ComposerSecondBrainContr
   const toggleEnabled = useSecondBrainStore((state) => state.toggleEnabled);
   const setOperation = useSecondBrainStore((state) => state.setOperation);
   const setVaultPath = useSecondBrainStore((state) => state.setVaultPath);
+  const setFloatingOpen = useSecondBrainStore((state) => state.setFloatingOpen);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingVault, setEditingVault] = useState(false);
@@ -205,6 +207,23 @@ export const ComposerSecondBrainControl = memo(function ComposerSecondBrainContr
             </div>
 
             <div className="mt-2 border-t border-border/60 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setFloatingOpen(true);
+                  setMenuOpen(false);
+                }}
+                className="mb-2 flex w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/18"
+              >
+                <span className="flex items-center gap-1.5">
+                  <MessageSquarePlusIcon className="size-3.5" />
+                  <span>Apri Side Chat / Quick Ingest</span>
+                </span>
+                <kbd className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
+                  Ctrl+Shift+B
+                </kbd>
+              </button>
+
               <div className="px-2 py-0.5 text-2xs font-medium uppercase tracking-wider text-muted-foreground">
                 Obsidian Vault
               </div>

@@ -38,6 +38,7 @@ import {
   usePanelNavigationSuppression,
 } from "../panelAnimations";
 import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
+import { SecondBrainFloatingChat } from "./chat/SecondBrainFloatingChat";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import ThreadSidebar from "./Sidebar";
 import { ProviderUsageDock } from "./usage/ProviderUsageDock";
@@ -476,6 +477,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         {children}
         <BackgroundThreadAnnouncer />
         <SidebarControl />
+        <SecondBrainFloatingChat />
         <ProviderUsageDock />
         {isElectron ? <HistorySwipeNavigation /> : null}
       </SidebarProvider>
