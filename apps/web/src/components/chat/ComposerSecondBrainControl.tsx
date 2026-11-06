@@ -20,6 +20,7 @@ import { Menu, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ComposerControl, ComposerControlIcon, type ComposerControlSize } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
+import { useOpenSecondBrainVault } from "./useOpenSecondBrainVault";
 
 function openInObsidian(vaultPath: string): void {
   const normalizedPath = vaultPath.trim() || DEFAULT_SECOND_BRAIN_VAULT_PATH;
@@ -30,14 +31,6 @@ function openInObsidian(vaultPath: string): void {
     return;
   }
   window.open(obsidianUri, "_blank", "noopener,noreferrer");
-}
-
-function openVaultInExplorer(vaultPath: string): void {
-  const normalizedPath = vaultPath.trim() || DEFAULT_SECOND_BRAIN_VAULT_PATH;
-  const api = readLocalApi();
-  if (api) {
-    void api.shell.openInEditor(normalizedPath, "explorer");
-  }
 }
 
 export const ComposerSecondBrainControl = memo(function ComposerSecondBrainControl(props: {
@@ -51,6 +44,7 @@ export const ComposerSecondBrainControl = memo(function ComposerSecondBrainContr
   const setOperation = useSecondBrainStore((state) => state.setOperation);
   const setVaultPath = useSecondBrainStore((state) => state.setVaultPath);
   const setFloatingOpen = useSecondBrainStore((state) => state.setFloatingOpen);
+  const openVaultInExplorer = useOpenSecondBrainVault();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [editingVault, setEditingVault] = useState(false);

@@ -71,6 +71,8 @@ import {
   waitForProject,
 } from "../../state/entities";
 import { usePrimaryEnvironment } from "../../state/environments";
+import { appAtomRegistry } from "../../rpc/atomRegistry";
+import { environmentServerConfigsAtom } from "../../state/server";
 import { projectEnvironment } from "../../state/projects";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -80,6 +82,7 @@ import ChatMarkdown from "../ChatMarkdown";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { splitTransferredFiles } from "./workspaceFileDrop";
+import { useOpenSecondBrainVault } from "./useOpenSecondBrainVault";
 
 function openInObsidian(vaultPath: string): void {
   const normalizedPath = vaultPath.trim() || DEFAULT_SECOND_BRAIN_VAULT_PATH;
@@ -90,14 +93,6 @@ function openInObsidian(vaultPath: string): void {
     return;
   }
   window.open(obsidianUri, "_blank", "noopener,noreferrer");
-}
-
-function openVaultInExplorer(vaultPath: string): void {
-  const normalizedPath = vaultPath.trim() || DEFAULT_SECOND_BRAIN_VAULT_PATH;
-  const api = readLocalApi();
-  if (api) {
-    void api.shell.openInEditor(normalizedPath, "explorer");
-  }
 }
 
 function renderDetectedIcon(kind: SecondBrainDetectedContentKind) {
@@ -222,6 +217,7 @@ export function SecondBrainFloatingChat() {
   const setDedicatedThreadId = useSecondBrainStore((state) => state.setDedicatedThreadId);
 
   const primaryEnvironment = usePrimaryEnvironment();
+  const openVaultInExplorer = useOpenSecondBrainVault();
   const environmentId = primaryEnvironment?.environmentId ?? null;
   const projects = useProjects();
   const allThreadShells = useQuietThreadShells();
@@ -289,7 +285,7 @@ export function SecondBrainFloatingChat() {
       const item = items[index]?.item;
       if (!item) continue;
       if (item.type === "command_execution") {
-        return `Comando: ${item.command.slice(0, 60)}`;
+        return `Comando: ${item.input.slice(0, 60)}`;
       }
       if (item.type === "file_change") {
         return "Aggiornamento file nella Wiki...";
@@ -473,7 +469,8 @@ export function SecondBrainFloatingChat() {
       const { modelSelection, createdAt } = resolveTurnModelSelectionAndTimestamp({
         projectId,
         existingSelection: existingShell?.modelSelection,
-        serverConfig: primaryEnvironment?.serverConfig,
+        // Environment presentation configs omit providers; read the full server config.
+        serverConfig: appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId),
       });
 
       const { outgoingText, titleSeed } = buildSecondBrainFloatingTurnPrompt({
