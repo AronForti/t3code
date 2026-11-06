@@ -146,7 +146,7 @@ export function ThreadDetailsCard({
         useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", open);
       }}
     >
-      {placement && inlineOpen ? (
+      {false && placement && inlineOpen ? (
         <aside
           {...detailsArea}
           data-workspace-focus-key={`details:${threadRef.environmentId}:${threadRef.threadId}`}
@@ -188,7 +188,7 @@ export function ThreadDetailsCard({
         variant="panel"
         padding="none"
       >
-        {mode === "popover" ? (
+        {false && mode === "popover" ? (
           <div data-density={density} data-thread-details-panel="popover">
             {card}
           </div>
