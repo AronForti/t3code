@@ -56,6 +56,7 @@ import {
   type SecondBrainAttachedFile,
   type SecondBrainDetectedContentKind,
   type SecondBrainOperationMode,
+  type SecondBrainPanelAction,
   useSecondBrainStore,
 } from "../../secondBrainStore";
 import {
@@ -104,6 +105,7 @@ function renderDetectedIcon(kind: SecondBrainDetectedContentKind) {
 
 function resolveTurnModelSelection(input: {
   readonly projectId: ProjectId;
+  readonly preferred: ModelSelection | undefined;
   readonly serverConfig:
     | {
         readonly providers: Parameters<typeof resolveProjectDefaultProviderModelSelection>[0];
@@ -114,6 +116,11 @@ function resolveTurnModelSelection(input: {
 }): ModelSelection {
   const providers = input.serverConfig?.providers ?? [];
   const settings = input.serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
+  if (input.preferred) {
+    // A preferred model whose provider is gone or disabled falls back to the project default.
+    const available = resolveDefaultProviderModelSelection(providers, input.preferred);
+    if (available?.instanceId === input.preferred.instanceId) return available;
+  }
   const resolved = resolveNewThreadModelSelection({
     defaultSelection: resolveProjectDefaultProviderModelSelection(
       providers,
@@ -132,7 +139,7 @@ function resolveTurnModelSelection(input: {
   throw new Error("Nessun provider AI attivo trovato per eseguire il Second Brain.");
 }
 
-type PanelOperation = Extract<SecondBrainOperationMode, "ingest" | "query" | "lint">;
+type PanelOperation = SecondBrainPanelAction;
 
 const PANEL_OPERATIONS: ReadonlyArray<{
   readonly mode: PanelOperation;
@@ -184,6 +191,7 @@ export function SecondBrainFloatingChat() {
   const operation = panelOperation(useSecondBrainStore((state) => state.floatingOperation));
   const setOperation = useSecondBrainStore((state) => state.setFloatingOperation);
   const vaultPath = useSecondBrainStore((state) => state.vaultPath);
+  const actionModels = useSecondBrainStore((state) => state.actionModels);
 
   const environmentId = usePrimaryEnvironment()?.environmentId ?? null;
   const openVaultInExplorer = useOpenSecondBrainVault();
@@ -336,6 +344,7 @@ export function SecondBrainFloatingChat() {
       const createdAt = new Date().toISOString();
       const modelSelection = resolveTurnModelSelection({
         projectId,
+        preferred: actionModels[operation],
         serverConfig: appAtomRegistry.get(environmentServerConfigsAtom).get(environmentId),
       });
       const { outgoingText, titleSeed } = buildSecondBrainFloatingTurnPrompt({

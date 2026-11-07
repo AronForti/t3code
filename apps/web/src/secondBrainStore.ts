@@ -1,7 +1,14 @@
 import { COMPACT_COMMAND_PATTERN } from "@t3tools/client-runtime/state/context-window";
+import { ModelSelection } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import { create } from "zustand";
 
 export type SecondBrainOperationMode = "auto" | "query" | "ingest" | "lint";
+export type SecondBrainPanelAction = Extract<SecondBrainOperationMode, "ingest" | "query" | "lint">;
+/** Per-action model overrides; a missing action uses the vault project's default model. */
+export type SecondBrainActionModels = Readonly<
+  Partial<Record<SecondBrainPanelAction, ModelSelection>>
+>;
 export type SecondBrainDetectedContentKind = "pdf" | "video" | "link" | "file";
 
 export interface SecondBrainAttachedFile {
@@ -33,6 +40,7 @@ interface PersistedSecondBrainState {
   operation?: SecondBrainOperationMode;
   vaultPath?: string;
   floatingOperation?: SecondBrainOperationMode;
+  actionModels?: unknown;
 }
 
 function isSecondBrainOperationMode(value: unknown): value is SecondBrainOperationMode {
@@ -41,6 +49,19 @@ function isSecondBrainOperationMode(value: unknown): value is SecondBrainOperati
 
 interface SecondBrainPersistedSnapshot extends SecondBrainPromptConfig {
   readonly floatingOperation: SecondBrainOperationMode;
+  readonly actionModels: SecondBrainActionModels;
+}
+
+const decodeModelSelection = Schema.decodeUnknownOption(ModelSelection);
+
+function readActionModels(value: unknown): SecondBrainActionModels {
+  if (typeof value !== "object" || value === null) return {};
+  const models: Partial<Record<SecondBrainPanelAction, ModelSelection>> = {};
+  for (const action of ["ingest", "query", "lint"] as const) {
+    const decoded = decodeModelSelection((value as Record<string, unknown>)[action]);
+    if (decoded._tag === "Some") models[action] = decoded.value;
+  }
+  return models;
 }
 
 function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
@@ -50,6 +71,7 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
       operation: "auto",
       vaultPath: DEFAULT_SECOND_BRAIN_VAULT_PATH,
       floatingOperation: "ingest",
+      actionModels: {},
     };
   }
   try {
@@ -60,6 +82,7 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
         operation: "auto",
         vaultPath: DEFAULT_SECOND_BRAIN_VAULT_PATH,
         floatingOperation: "ingest",
+        actionModels: {},
       };
     }
     const parsed = JSON.parse(raw) as PersistedSecondBrainState;
@@ -74,6 +97,7 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
       floatingOperation: isSecondBrainOperationMode(parsed.floatingOperation)
         ? parsed.floatingOperation
         : "ingest",
+      actionModels: readActionModels(parsed.actionModels),
     };
   } catch {
     return {
@@ -81,6 +105,7 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
       operation: "auto",
       vaultPath: DEFAULT_SECOND_BRAIN_VAULT_PATH,
       floatingOperation: "ingest",
+      actionModels: {},
     };
   }
 }
@@ -95,6 +120,7 @@ function writePersistedSecondBrainState(state: SecondBrainPersistedSnapshot): vo
         operation: state.operation,
         vaultPath: state.vaultPath,
         floatingOperation: state.floatingOperation,
+        actionModels: state.actionModels,
       }),
     );
   } catch {
@@ -111,6 +137,10 @@ interface SecondBrainStoreState extends SecondBrainPersistedSnapshot {
   readonly setFloatingOpen: (open: boolean) => void;
   readonly toggleFloatingOpen: () => void;
   readonly setFloatingOperation: (operation: SecondBrainOperationMode) => void;
+  readonly setActionModel: (
+    action: SecondBrainPanelAction,
+    selection: ModelSelection | null,
+  ) => void;
 }
 
 function snapshotFromStore(
@@ -122,6 +152,7 @@ function snapshotFromStore(
     operation: overrides.operation ?? state.operation,
     vaultPath: overrides.vaultPath ?? state.vaultPath,
     floatingOperation: overrides.floatingOperation ?? state.floatingOperation,
+    actionModels: overrides.actionModels ?? state.actionModels,
   };
 }
 
@@ -163,6 +194,12 @@ export const useSecondBrainStore = create<SecondBrainStoreState>((set, get) => {
       const next = snapshotFromStore(get(), { floatingOperation });
       writePersistedSecondBrainState(next);
       set({ floatingOperation });
+    },
+    setActionModel: (action, selection) => {
+      const { [action]: _previous, ...rest } = get().actionModels;
+      const actionModels = selection === null ? rest : { ...rest, [action]: selection };
+      writePersistedSecondBrainState(snapshotFromStore(get(), { actionModels }));
+      set({ actionModels });
     },
   };
 });

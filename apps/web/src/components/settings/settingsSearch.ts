@@ -29,6 +29,7 @@ export type SettingsPath =
   | "/settings/browser"
   | "/settings/devices"
   | "/settings/mcp"
+  | "/settings/second-brain"
   | "/settings/scheduled-tasks"
   | "/settings/source-control"
   | "/settings/worktrees"
@@ -100,6 +101,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/browser": "Browser",
   "/settings/devices": "Devices",
   "/settings/mcp": "MCP & plugins",
+  "/settings/second-brain": "Second Brain",
   "/settings/scheduled-tasks": "Scheduled tasks",
   "/settings/source-control": "Source control",
   "/settings/worktrees": "Worktrees",
@@ -136,6 +138,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
       "/settings/browser",
       "/settings/devices",
       "/settings/mcp",
+      "/settings/second-brain",
       "/settings/scheduled-tasks",
     ],
   },
@@ -1215,6 +1218,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/browser": null,
   "/settings/devices": null,
   "/settings/mcp": "environment",
+  "/settings/second-brain": "environment",
   "/settings/source-control": "environment-defaults",
   "/settings/worktrees": "project-defaults",
   "/settings/connections": "connections",
