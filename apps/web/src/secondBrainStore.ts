@@ -23,44 +23,6 @@ export interface SecondBrainDetectedItem {
 export const DEFAULT_SECOND_BRAIN_VAULT_PATH = "C:\\Users\\aronf\\Documents\\Aron Wiki";
 const SECOND_BRAIN_STORAGE_KEY = "t3code:second-brain-v1";
 
-interface SecondBrainOperationMetadata {
-  readonly mode: SecondBrainOperationMode;
-  readonly label: string;
-  readonly shortLabel: string;
-  readonly description: string;
-}
-
-export const SECOND_BRAIN_OPERATIONS: ReadonlyArray<SecondBrainOperationMetadata> = [
-  {
-    mode: "auto",
-    label: "Auto (Memoria Condivisa)",
-    shortLabel: "Auto",
-    description:
-      "Consulta automaticamente la wiki per contesto e aggiorna le pagine quando emergono nuove conoscenze o decisioni.",
-  },
-  {
-    mode: "query",
-    label: "Leggi (Query Wiki)",
-    shortLabel: "Leggi",
-    description:
-      "Interroga la wiki partendo da index.md, cita le pagine usate e salva analisi o decisioni rilevanti.",
-  },
-  {
-    mode: "ingest",
-    label: "Carica (Ingest Fonte)",
-    shortLabel: "Carica",
-    description:
-      "Integra PDF, link web, video o appunti nella wiki aggiornando raw/, sources, entities, concepts, index.md e log.md.",
-  },
-  {
-    mode: "lint",
-    label: "Riordina (Health Check)",
-    shortLabel: "Riordina",
-    description:
-      "Controlla integrità, contraddizioni, pagine orfane e link mancanti con check_wiki.py e aggiorna reviews/.",
-  },
-] as const;
-
 export interface SecondBrainPromptConfig {
   readonly enabled: boolean;
   readonly operation: SecondBrainOperationMode;
