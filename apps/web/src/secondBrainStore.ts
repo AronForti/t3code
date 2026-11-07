@@ -2,7 +2,6 @@ import { COMPACT_COMMAND_PATTERN } from "@t3tools/client-runtime/state/context-w
 import { create } from "zustand";
 
 export type SecondBrainOperationMode = "auto" | "query" | "ingest" | "lint";
-export type SecondBrainFloatingViewMode = "bar" | "chat" | "expanded";
 export type SecondBrainDetectedContentKind = "pdf" | "video" | "link" | "file";
 
 export interface SecondBrainAttachedFile {
@@ -33,23 +32,15 @@ interface PersistedSecondBrainState {
   enabled?: boolean;
   operation?: SecondBrainOperationMode;
   vaultPath?: string;
-  floatingViewMode?: SecondBrainFloatingViewMode;
   floatingOperation?: SecondBrainOperationMode;
-  dedicatedThreadId?: string | null;
 }
 
 function isSecondBrainOperationMode(value: unknown): value is SecondBrainOperationMode {
   return value === "auto" || value === "query" || value === "ingest" || value === "lint";
 }
 
-function isSecondBrainFloatingViewMode(value: unknown): value is SecondBrainFloatingViewMode {
-  return value === "bar" || value === "chat" || value === "expanded";
-}
-
 interface SecondBrainPersistedSnapshot extends SecondBrainPromptConfig {
-  readonly floatingViewMode: SecondBrainFloatingViewMode;
   readonly floatingOperation: SecondBrainOperationMode;
-  readonly dedicatedThreadId: string | null;
 }
 
 function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
@@ -58,9 +49,7 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
       enabled: false,
       operation: "auto",
       vaultPath: DEFAULT_SECOND_BRAIN_VAULT_PATH,
-      floatingViewMode: "chat",
       floatingOperation: "ingest",
-      dedicatedThreadId: null,
     };
   }
   try {
@@ -70,9 +59,7 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
         enabled: false,
         operation: "auto",
         vaultPath: DEFAULT_SECOND_BRAIN_VAULT_PATH,
-        floatingViewMode: "chat",
         floatingOperation: "ingest",
-        dedicatedThreadId: null,
       };
     }
     const parsed = JSON.parse(raw) as PersistedSecondBrainState;
@@ -84,25 +71,16 @@ function readPersistedSecondBrainState(): SecondBrainPersistedSnapshot {
       enabled: Boolean(parsed.enabled),
       operation: isSecondBrainOperationMode(parsed.operation) ? parsed.operation : "auto",
       vaultPath,
-      floatingViewMode: isSecondBrainFloatingViewMode(parsed.floatingViewMode)
-        ? parsed.floatingViewMode
-        : "chat",
       floatingOperation: isSecondBrainOperationMode(parsed.floatingOperation)
         ? parsed.floatingOperation
         : "ingest",
-      dedicatedThreadId:
-        typeof parsed.dedicatedThreadId === "string" && parsed.dedicatedThreadId.trim().length > 0
-          ? parsed.dedicatedThreadId.trim()
-          : null,
     };
   } catch {
     return {
       enabled: false,
       operation: "auto",
       vaultPath: DEFAULT_SECOND_BRAIN_VAULT_PATH,
-      floatingViewMode: "chat",
       floatingOperation: "ingest",
-      dedicatedThreadId: null,
     };
   }
 }
@@ -116,9 +94,7 @@ function writePersistedSecondBrainState(state: SecondBrainPersistedSnapshot): vo
         enabled: state.enabled,
         operation: state.operation,
         vaultPath: state.vaultPath,
-        floatingViewMode: state.floatingViewMode,
         floatingOperation: state.floatingOperation,
-        dedicatedThreadId: state.dedicatedThreadId,
       }),
     );
   } catch {
@@ -134,9 +110,7 @@ interface SecondBrainStoreState extends SecondBrainPersistedSnapshot {
   readonly setVaultPath: (vaultPath: string) => void;
   readonly setFloatingOpen: (open: boolean) => void;
   readonly toggleFloatingOpen: () => void;
-  readonly setFloatingViewMode: (mode: SecondBrainFloatingViewMode) => void;
   readonly setFloatingOperation: (operation: SecondBrainOperationMode) => void;
-  readonly setDedicatedThreadId: (threadId: string | null) => void;
 }
 
 function snapshotFromStore(
@@ -147,12 +121,7 @@ function snapshotFromStore(
     enabled: overrides.enabled ?? state.enabled,
     operation: overrides.operation ?? state.operation,
     vaultPath: overrides.vaultPath ?? state.vaultPath,
-    floatingViewMode: overrides.floatingViewMode ?? state.floatingViewMode,
     floatingOperation: overrides.floatingOperation ?? state.floatingOperation,
-    dedicatedThreadId:
-      overrides.dedicatedThreadId !== undefined
-        ? overrides.dedicatedThreadId
-        : state.dedicatedThreadId,
   };
 }
 
@@ -190,20 +159,10 @@ export const useSecondBrainStore = create<SecondBrainStoreState>((set, get) => {
     toggleFloatingOpen: () => {
       set({ floatingOpen: !get().floatingOpen });
     },
-    setFloatingViewMode: (floatingViewMode) => {
-      const next = snapshotFromStore(get(), { floatingViewMode });
-      writePersistedSecondBrainState(next);
-      set({ floatingViewMode });
-    },
     setFloatingOperation: (floatingOperation) => {
       const next = snapshotFromStore(get(), { floatingOperation });
       writePersistedSecondBrainState(next);
       set({ floatingOperation });
-    },
-    setDedicatedThreadId: (dedicatedThreadId) => {
-      const next = snapshotFromStore(get(), { dedicatedThreadId });
-      writePersistedSecondBrainState(next);
-      set({ dedicatedThreadId });
     },
   };
 });
