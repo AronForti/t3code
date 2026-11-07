@@ -79,6 +79,7 @@ describe("buildProviderDockItems", () => {
                 displayName: "Antigravity",
                 usageLimits: {
                   checkedAt: "2026-09-03T11:55:00.000Z",
+                  windows: [],
                   unavailable: {
                     reason: "unsupported",
                     message: "Quota telemetry is not exposed by this provider.",
@@ -112,5 +113,44 @@ describe("buildProviderDockItems", () => {
     const antigravity = items.find((item) => item.driver === "antigravity");
     expect(antigravity?.primaryRemainingPercent).toBeNull();
     expect(antigravity?.unavailableNotice).toContain("Quota telemetry is not exposed");
+  });
+
+  it("extracts externalUsage on dock items when available", () => {
+    const envId = EnvironmentId.make("local");
+    const presentations = new Map([
+      [
+        envId,
+        {
+          entry: { target: { label: "Local" } },
+          serverConfig: {
+            providers: [
+              makeProvider({
+                instanceId: ProviderInstanceId.make("codex"),
+                driver: ProviderDriverKind.make("codex"),
+                displayName: "Codex",
+                usageLimits: {
+                  checkedAt: "2026-09-03T11:55:00.000Z",
+                  windows: [],
+                  unavailable: {
+                    reason: "unsupported",
+                    message: "ChatGPT tracks subscription usage across connected apps.",
+                  },
+                  externalUsage: {
+                    label: "ChatGPT usage",
+                    url: "https://chatgpt.com/#settings/Usage",
+                  },
+                },
+              }),
+            ],
+            usageLimitSources: [],
+          },
+        },
+      ],
+    ]);
+
+    const items = buildProviderDockItems(presentations, now);
+    const codex = items.find((item) => item.driver === "codex");
+    expect(codex?.externalUsage?.url).toBe("https://chatgpt.com/#settings/Usage");
+    expect(codex?.unavailableNotice).toContain("ChatGPT tracks subscription usage");
   });
 });

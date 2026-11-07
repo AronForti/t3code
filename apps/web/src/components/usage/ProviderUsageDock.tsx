@@ -26,6 +26,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { ExternalLinkIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 
+import { ensureLocalApi } from "../../localApi";
 import { usePrimarySettings } from "../../hooks/useSettings";
 import { useNowMinute } from "../../hooks/useNowMinute";
 import { cn } from "../../lib/utils";
@@ -53,6 +54,7 @@ export interface ProviderDockItem {
   readonly acpRegistryIconUrl: string | undefined;
   readonly pool: LimitPool | null;
   readonly primaryRemainingPercent: number | null;
+  readonly externalUsage?: { readonly label: string; readonly url: string } | undefined;
   readonly unavailableNotice: string | null;
 }
 
@@ -115,6 +117,8 @@ export function buildProviderDockItems(
       String(driver);
     const accentColor = connected?.accentColor ?? pool?.accounts[0]?.accentColor;
     const notices = connectedByDriver.get(driver)?.notices ?? [];
+    const externalUsage =
+      connected?.usageLimits?.externalUsage ?? pool?.accounts[0]?.limits.externalUsage;
 
     items.push({
       driver,
@@ -123,6 +127,7 @@ export function buildProviderDockItems(
       acpRegistryIconUrl: connected?.iconUrl,
       pool,
       primaryRemainingPercent,
+      externalUsage,
       unavailableNotice:
         windows.length === 0 ? (notices[0] ?? "Usage limits unavailable for this provider.") : null,
     });
@@ -362,8 +367,19 @@ function ProviderUsageDockButton({
               ))}
             </div>
           ) : (
-            <div className="border-t border-border/60 pt-2 text-2xs text-muted-foreground">
-              {item.unavailableNotice}
+            <div className="flex flex-col gap-2 border-t border-border/60 pt-2">
+              <div className="text-2xs text-muted-foreground">{item.unavailableNotice}</div>
+              {item.externalUsage ? (
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => void ensureLocalApi().shell.openExternal(item.externalUsage!.url)}
+                >
+                  <ExternalLinkIcon className="me-1.5 size-3" />
+                  {item.externalUsage.label}
+                </Button>
+              ) : null}
             </div>
           )}
         </div>

@@ -106,7 +106,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
         message: "Sign in with ChatGPT to use Codex.",
         auth: { status: "unauthenticated" as const },
       };
-    const usageLimits = {
+    const fallbackUsageLimits = {
       checkedAt: base.checkedAt,
       windows: [],
       unavailable: {
@@ -151,8 +151,16 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
           return { ...draft, models };
         }),
       ),
-      Effect.map((draft) =>
-        stamp({
+      Effect.map((draft) => {
+        const probedLimits = draft.usageLimits;
+        const hasWindows = Boolean(probedLimits && probedLimits.windows.length > 0);
+        const usageLimits = hasWindows
+          ? {
+              ...probedLimits!,
+              externalUsage: fallbackUsageLimits.externalUsage,
+            }
+          : fallbackUsageLimits;
+        return stamp({
           ...draft,
           auth: managedAuth,
           version: draft.version ?? executable.value.version,
@@ -177,8 +185,8 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
                 slashCommands: draft.slashCommands.filter((command) => command.name !== "feedback"),
               }
             : {}),
-        }),
-      ),
+        });
+      }),
       Effect.catch(() =>
         runtime.auth.read.pipe(
           Effect.orElseSucceed(() => Option.none()),
@@ -202,7 +210,7 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
                 : {}),
             },
             ...(Option.isSome(current) && current.value.scopes.includes("chatgpt.tokens.use.direct")
-              ? { usageLimits }
+              ? { usageLimits: fallbackUsageLimits }
               : {}),
             message: "Could not check Codex right now. Retry, or reconnect in provider settings.",
           })),

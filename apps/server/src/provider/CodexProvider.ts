@@ -780,7 +780,6 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
     launchArgs: resolveCodexLaunchArgs(codexSettings.launchArgs, resolvedEnvironment),
     cwd: process.cwd(),
     environment: resolvedEnvironment,
-    ...(managedAuth ? { skipNativeUsage: true } : {}),
   }).pipe(
     // Process teardown can outlast the work budget without discarding a completed snapshot.
     Effect.timeoutOption(Duration.millis(CODEX_AUTH_PROBE_TIMEOUT_MS)),
@@ -891,7 +890,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
         : snapshot.models === undefined
           ? { message: "Codex did not return its model catalog in time." }
           : {}),
-      ...(managedAuth ? {} : { usageLimits }),
+      ...(usageLimits ? { usageLimits } : {}),
     },
   });
 });
