@@ -64,6 +64,7 @@ import {
   FolderGit2Icon,
   FolderIcon,
   FolderPlusIcon,
+  HistoryIcon,
   MessageSquareDashedIcon,
   LinkIcon,
   MessageSquareIcon,
@@ -78,6 +79,7 @@ import {
   UserPlusIcon,
 } from "lucide-react";
 import { openThreadFind } from "./chat/threadFindStore";
+import { openImportProjectsDialog } from "./onboarding/ImportProjectsDialog";
 import {
   useDeferredValue,
   useEffect,
@@ -1010,6 +1012,18 @@ function OpenCommandPaletteDialog(props: {
         },
       },
     ];
+
+    sourceItems.push({
+      kind: "action",
+      value: `action:add-project:${environmentId}:import`,
+      searchTerms: ["import", "history", "conversations", "claude code", "codex", "antigravity"],
+      title: "Import from other agents",
+      description: "Claude Code, Codex and Antigravity projects with their history",
+      icon: <HistoryIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        openImportProjectsDialog(environmentId);
+      },
+    });
 
     if (newProjectsRootFor(environmentId) !== null) {
       sourceItems.unshift({

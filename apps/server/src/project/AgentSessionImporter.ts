@@ -26,19 +26,25 @@ import {
 import { normalizeProjectPathForComparison } from "@t3tools/shared/path";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import * as Context from "effect/Context";
+import * as Digest from "effect/crypto/Digest";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 
+import * as ServerConfig from "../config.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as ProviderSessionRuntime from "../persistence/ProviderSessionRuntime.ts";
+import { resolveAntigravityInstanceDirectories } from "../provider/antigravityAuthSupport.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as AgentSessionScanner from "./AgentSessionScanner.ts";
+import * as AntigravitySessions from "./AntigravitySessions.ts";
 import * as ProjectService from "./ProjectService.ts";
 
 const IMPORT_EVENT_PREFIX = "agent-session-import:v2";
@@ -49,6 +55,10 @@ const decodeImportedTranscriptPayload = Schema.decodeUnknownOption(
     cwd: Schema.optional(Schema.String),
     importedTranscripts: Schema.optional(Schema.Array(AgentSessionImportSource)),
   }),
+);
+
+const encodeAntigravitySessionMetadata = Schema.encodeEffect(
+  Schema.fromJsonString(Schema.Struct({ cwd: Schema.String })),
 );
 
 class AgentSessionUnresumableSessionError extends Schema.TaggedError<AgentSessionUnresumableSessionError>()(
@@ -73,6 +83,15 @@ class AgentSessionThreadProjectConflictError extends Schema.TaggedError<AgentSes
 ) {
   override get message(): string {
     return `Imported thread '${this.threadId}' belongs to project '${this.actualProjectId}', not '${this.expectedProjectId}'.`;
+  }
+}
+
+class AgentSessionAntigravityCopyError extends Schema.TaggedError<AgentSessionAntigravityCopyError>()(
+  "AgentSessionAntigravityCopyError",
+  { conversationId: Schema.String, cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return `Could not copy Antigravity conversation '${this.conversationId}' into T3's Antigravity profile.`;
   }
 }
 
@@ -177,6 +196,49 @@ const make = Effect.gen(function* () {
   const runtimes = yield* ProviderSessionRuntime.ProviderSessionRuntimeRepository;
   const settingsService = yield* ServerSettings.ServerSettingsService;
   const ceiling = settingsService.managedPolicy?.limits?.maxRuntimeMode;
+  const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const digest = yield* Digest.Digest;
+  const serverConfig = yield* ServerConfig.ServerConfig;
+
+  // T3 runs Antigravity in a private profile, so it resumes only conversations stored there.
+  // A conversation already in the profile was continued from T3 and is never overwritten.
+  const copyAntigravityConversation = Effect.fn("AgentSessionImporter.copyAntigravityConversation")(
+    function* (input: { readonly source: AgentSessionImportSource; readonly cwd: string }) {
+      const conversationId = input.source.providerSessionId;
+      const directories = yield* resolveAntigravityInstanceDirectories(
+        serverConfig.stateDir,
+        input.source.providerInstanceId,
+      ).pipe(Effect.provideService(Digest.Digest, digest), Effect.provideService(Path.Path, path));
+      const acpDirectory = path.join(directories.profile, "antigravity-acp");
+      const conversations = path.join(acpDirectory, "conversations");
+      const target = path.join(conversations, `${conversationId}.db`);
+      if (yield* fileSystem.exists(target)) return;
+      const staging = `${target}.import`;
+      yield* fileSystem.makeDirectory(conversations, { recursive: true });
+      yield* fileSystem.remove(staging, { force: true });
+      yield* Effect.try({
+        try: () =>
+          AntigravitySessions.snapshotAntigravityConversation(input.source.filePath, staging),
+        catch: (cause) => new AgentSessionAntigravityCopyError({ conversationId, cause }),
+      });
+      yield* fileSystem.writeFileString(
+        path.join(conversations, `${conversationId}.meta`),
+        yield* encodeAntigravitySessionMetadata({ cwd: input.cwd }),
+      );
+      // Artifacts and uploads the conversation links to live beside it in brain/.
+      const brain = path.join(
+        path.dirname(path.dirname(input.source.filePath)),
+        "brain",
+        conversationId,
+      );
+      const targetBrain = path.join(acpDirectory, "brain", conversationId);
+      if ((yield* fileSystem.exists(brain)) && !(yield* fileSystem.exists(targetBrain))) {
+        yield* fileSystem.copy(brain, targetBrain);
+      }
+      yield* fileSystem.rename(staging, target);
+    },
+  );
   const importRecentAgentThreads = Effect.fn("importRecentAgentThreadsV2")(function* (
     input: AgentSessionImportInput,
   ) {
@@ -268,6 +330,18 @@ const make = Effect.gen(function* () {
               source: thread.source,
               providerSessionId: thread.providerSessionId,
             });
+          }
+          if (
+            thread.source === "antigravity" &&
+            !AntigravitySessions.ANTIGRAVITY_CONVERSATION_ID.test(thread.providerSessionId)
+          ) {
+            return yield* new AgentSessionUnresumableSessionError({
+              source: thread.source,
+              providerSessionId: thread.providerSessionId,
+            });
+          }
+          if (thread.source === "antigravity") {
+            yield* copyAntigravityConversation({ source, cwd: project.workspaceRoot });
           }
           const driver = ProviderDriverKind.make(thread.source);
           // Pi resumes by session file path; its session UUID only names the thread.

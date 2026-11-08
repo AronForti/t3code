@@ -1,3 +1,8 @@
+// @effect-diagnostics nodeBuiltinImport:off -- node:sqlite writes a native Antigravity conversation fixture.
+import * as NodeSqlite from "node:sqlite";
+
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
   type AgentSessionSource,
@@ -17,11 +22,14 @@ import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 
+import * as ServerConfig from "../config.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as EventStore from "../orchestration-v2/EventStore.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
@@ -31,6 +39,7 @@ import {
   CODEX_MODEL_SELECTION,
 } from "../orchestration-v2/testkit/fixtures/shared.ts";
 import * as ProviderSessionRuntime from "../persistence/ProviderSessionRuntime.ts";
+import { resolveAntigravityInstanceDirectories } from "../provider/antigravityAuthSupport.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as AgentSessionImporter from "./AgentSessionImporter.ts";
@@ -169,6 +178,14 @@ const seedOwner = Effect.fn(function* (
   return threadId;
 });
 
+const platform = Layer.mergeAll(
+  NodeServices.layer,
+  NodeCrypto.layer,
+  ServerConfig.layerTest(process.cwd(), { prefix: "t3-agent-session-import-" }).pipe(
+    Layer.provide(NodeServices.layer),
+  ),
+);
+
 const makeImporter = Effect.fn(function* (
   candidates: ReadonlyArray<ReturnType<typeof candidate>>,
   beforeTransaction: Effect.Effect<void> = Effect.void,
@@ -208,6 +225,7 @@ const makeImporter = Effect.fn(function* (
   );
   const context = yield* Layer.build(
     AgentSessionImporter.layer.pipe(
+      Layer.provideMerge(platform),
       Layer.provide(
         Layer.mergeAll(
           sinkLayer,
@@ -248,7 +266,11 @@ const makeImporter = Effect.fn(function* (
     ),
   );
   const importer = Context.get(context, AgentSessionImporter.AgentSessionImporter);
-  return { run: importer.importRecentAgentThreads({ projectId }), published };
+  return {
+    run: importer.importRecentAgentThreads({ projectId }),
+    published,
+    config: Context.get(context, ServerConfig.ServerConfig),
+  };
 });
 
 it.effect(
@@ -448,4 +470,56 @@ it.effect("imports under a policy ceiling in the project's default, kept under t
       "auto-accept-edits",
     );
   }).pipe(Effect.scoped, Effect.provide(persistence)),
+);
+
+it.effect("copies an Antigravity conversation into T3's profile so the thread resumes it", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const runtimes = yield* ProviderSessionRuntime.ProviderSessionRuntimeRepository;
+    const conversationId = "0b9b2d8c-ea5a-4b98-b900-d048e5deb8e1";
+    const nativeHome = yield* fs.makeTempDirectoryScoped({ prefix: "t3-antigravity-native-" });
+    const filePath = path.join(nativeHome, "conversations", `${conversationId}.db`);
+    yield* fs.makeDirectory(path.dirname(filePath), { recursive: true });
+    yield* fs.makeDirectory(path.join(nativeHome, "brain", conversationId), { recursive: true });
+    yield* fs.writeFileString(path.join(nativeHome, "brain", conversationId, "plan.md"), "plan");
+    const native = new NodeSqlite.DatabaseSync(filePath);
+    native.exec("CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER)");
+    native.exec("INSERT INTO steps VALUES (0, 14)");
+    native.close();
+    const antigravity = candidate(
+      { instanceId: ProviderInstanceId.make("antigravity"), model: "antigravity-default" },
+      conversationId,
+      "antigravity",
+    );
+    const source = { ...antigravity, source: { ...antigravity.source, filePath } };
+    const importer = yield* makeImporter([source]);
+
+    expect(yield* importer.run).toEqual({ importedCount: 1, skippedCount: 0 });
+
+    const profile = (yield* resolveAntigravityInstanceDirectories(
+      importer.config.stateDir,
+      ProviderInstanceId.make("antigravity"),
+    )).profile;
+    const conversations = path.join(profile, "antigravity-acp", "conversations");
+    const copy = new NodeSqlite.DatabaseSync(path.join(conversations, `${conversationId}.db`), {
+      readOnly: true,
+    });
+    expect(copy.prepare("SELECT step_type FROM steps").all()).toEqual([{ step_type: 14 }]);
+    copy.close();
+    expect(
+      JSON.parse(yield* fs.readFileString(path.join(conversations, `${conversationId}.meta`))),
+    ).toEqual({ cwd: "/workspace/project" });
+    expect(
+      yield* fs.readFileString(
+        path.join(profile, "antigravity-acp", "brain", conversationId, "plan.md"),
+      ),
+    ).toBe("plan");
+    expect(
+      Option.getOrThrow(yield* runtimes.getByThreadId({ threadId: importId(source) })),
+    ).toMatchObject({ resumeCursor: { threadId: conversationId } });
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(Layer.mergeAll(persistence, NodeServices.layer, NodeCrypto.layer)),
+  ),
 );
